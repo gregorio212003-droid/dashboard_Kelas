@@ -1,0 +1,74 @@
+
+<?php
+
+require_once __DIR__ . '/../../includes/auth.php';
+require_role('admin');
+
+require_once __DIR__ . '/../../config/koneksi.php';
+
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+
+// Hanya menerima POST
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: siswa.php');
+    exit;
+}
+
+// Validasi CSRF
+$token = $_POST['csrf_token'] ?? '';
+
+if (
+    empty($_SESSION['csrf_token']) ||
+    !is_string($token) ||
+    !hash_equals($_SESSION['csrf_token'], $token)
+) {
+    http_response_code(403);
+    exit('Token keamanan tidak valid.');
+}
+
+// Validasi ID siswa
+$id = filter_var(
+    $_POST['student_id'] ?? null,
+    FILTER_VALIDATE_INT
+);
+
+if (!$id || $id < 1) {
+    header('Location: siswa.php?error=invalid_id');
+    exit;
+}
+
+try {
+
+    $stmt = $pdo->prepare("
+        UPDATE students
+        SET status = 'aktif'
+        WHERE id = :id
+        AND status = 'nonaktif'
+    ");
+
+    $stmt->execute([
+        'id' => $id
+    ]);
+
+    if ($stmt->rowCount() > 0) {
+
+        header('Location: siswa.php?success=aktif');
+
+    } else {
+
+        header('Location: siswa.php?error=not_found');
+
+    }
+
+    exit;
+
+} catch (PDOException $e) {
+
+    error_log($e->getMessage());
+
+    header('Location: siswa.php?error=database');
+    exit;
+
+}
